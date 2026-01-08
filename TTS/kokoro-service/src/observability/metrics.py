@@ -17,9 +17,22 @@ from prometheus_client import Counter, Gauge, Histogram
 
 tts_ttfa = Histogram(
     "tts_time_to_first_audio_seconds",
-    "Time to first audio in seconds",
+    "Time to first audio in seconds (queue_wait + inference)",
     ["voice"],
     buckets=(0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1.0, 2.0, 5.0),
+)
+
+tts_queue_wait = Histogram(
+    "tts_queue_wait_seconds",
+    "Time request spent waiting in queue (before inference starts)",
+    buckets=(0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 5.0),
+)
+
+tts_inference_time = Histogram(
+    "tts_inference_time_seconds",
+    "Pure inference time (excluding queue wait)",
+    ["voice"],
+    buckets=(0.02, 0.04, 0.06, 0.08, 0.1, 0.15, 0.2, 0.3, 0.5),
 )
 
 tts_chunk_latency = Histogram(
@@ -62,6 +75,18 @@ tts_sessions_total = Counter(
     ["end_reason"],  # completed, cancelled, error
 )
 
+tts_requests_rejected = Counter(
+    "tts_requests_rejected_total",
+    "Requests rejected by admission control",
+    ["reason"],  # queue_full, queue_congestion
+)
+
+tts_slo_violations = Counter(
+    "tts_slo_violations_total",
+    "SLO violations detected",
+    ["type"],  # ttfa_p95, ttfa_p99, rtf
+)
+
 # =============================================================================
 # State metrics
 # =============================================================================
@@ -79,6 +104,16 @@ tts_queue_depth = Gauge(
 tts_inflight_segments = Gauge(
     "tts_inflight_segments_total",
     "Total segments currently in flight across all sessions",
+)
+
+tts_estimated_wait = Gauge(
+    "tts_estimated_wait_ms",
+    "Estimated wait time for new requests (queue_depth * avg_inference_ms)",
+)
+
+tts_avg_inference = Gauge(
+    "tts_avg_inference_ms",
+    "EMA-tracked average inference time in milliseconds",
 )
 
 tts_gpu_utilization = Gauge(
@@ -107,6 +142,8 @@ def record_segment_metrics(
     ttfa_seconds: float,
     rtf: float,
     duration_seconds: float,
+    queue_wait_seconds: float = 0.0,
+    inference_seconds: float = 0.0,
     success: bool = True,
 ) -> None:
     """
@@ -114,9 +151,11 @@ def record_segment_metrics(
     
     Args:
         voice: Voice used for synthesis
-        ttfa_seconds: Time to first audio in seconds
+        ttfa_seconds: Time to first audio in seconds (queue_wait + inference)
         rtf: Real-time factor
         duration_seconds: Duration of generated audio
+        queue_wait_seconds: Time spent waiting in queue
+        inference_seconds: Pure inference time
         success: Whether the segment was successful
     """
     tts_ttfa.labels(voice=voice).observe(ttfa_seconds)
@@ -124,8 +163,35 @@ def record_segment_metrics(
     tts_segment_duration.observe(duration_seconds)
     tts_audio_seconds_total.inc(duration_seconds)
     
+    # Record queue wait and inference time
+    if queue_wait_seconds > 0:
+        tts_queue_wait.observe(queue_wait_seconds)
+    if inference_seconds > 0:
+        tts_inference_time.labels(voice=voice).observe(inference_seconds)
+    
     status = "success" if success else "error"
     tts_requests_total.labels(status=status).inc()
+
+
+def record_request_rejected(reason: str) -> None:
+    """Record a request rejected by admission control."""
+    tts_requests_rejected.labels(reason=reason).inc()
+
+
+def record_slo_violation(violation_type: str) -> None:
+    """Record an SLO violation."""
+    tts_slo_violations.labels(type=violation_type).inc()
+
+
+def update_queue_metrics(
+    queue_depth: int,
+    estimated_wait_ms: float,
+    avg_inference_ms: float,
+) -> None:
+    """Update queue-related gauge metrics."""
+    tts_queue_depth.set(queue_depth)
+    tts_estimated_wait.set(estimated_wait_ms)
+    tts_avg_inference.set(avg_inference_ms)
 
 
 def record_session_ended(reason: str) -> None:

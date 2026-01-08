@@ -154,6 +154,8 @@ class Session:
                 ttfa_ms=result.ttfa_ms,
                 rtf=result.rtf,
                 total_samples=len(result.audio),
+                queue_wait_ms=result.queue_wait_ms,
+                inference_ms=result.inference_ms,
             )
             await stream_audio_to_client(self, result.audio, metrics)
 

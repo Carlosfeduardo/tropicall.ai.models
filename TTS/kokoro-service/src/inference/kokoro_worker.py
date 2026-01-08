@@ -54,6 +54,20 @@ class KokoroWorker:
         This should be called during startup to reduce TTFA
         for the first real requests.
         """
+        # Detect and log device
+        cuda_available = torch.cuda.is_available()
+        if cuda_available:
+            device = "cuda"
+            gpu_name = torch.cuda.get_device_name(0)
+            gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+            logger.info(f"CUDA available: {gpu_name} ({gpu_memory:.1f} GB)")
+        else:
+            device = "cpu"
+            logger.warning("CUDA NOT available - using CPU (slower inference)")
+        
+        self.device = device
+        logger.info(f"Device selected: {device.upper()}")
+        
         logger.info("Loading Kokoro pipeline...")
         
         # Import here to avoid loading at module import time
@@ -62,6 +76,7 @@ class KokoroWorker:
         self.pipeline = KPipeline(
             lang_code=self.lang_code,
             repo_id=self.repo_id,
+            device=device,  # Explicitly pass device!
         )
         
         logger.info("Running warmup inference...")
@@ -71,11 +86,15 @@ class KokoroWorker:
         _ = list(self.pipeline(warmup_text, voice="pf_dora"))
         
         # Synchronize CUDA to ensure warmup is complete
-        if torch.cuda.is_available():
+        if cuda_available:
             torch.cuda.synchronize()
+            # Log GPU memory usage after loading
+            allocated = torch.cuda.memory_allocated(0) / (1024**3)
+            reserved = torch.cuda.memory_reserved(0) / (1024**3)
+            logger.info(f"GPU memory: {allocated:.2f} GB allocated, {reserved:.2f} GB reserved")
         
         self._is_ready = True
-        logger.info("Kokoro worker ready")
+        logger.info(f"Kokoro worker ready on {device.upper()}")
 
     def generate_segment(
         self,
@@ -103,7 +122,12 @@ class KokoroWorker:
         # KPipeline returns generator of (graphemes, phonemes, audio)
         # For a single segment, we take the first result
         for _gs, _ps, audio in self.pipeline(text, voice=voice, speed=speed):
-            # audio is numpy array float32 in range [-1, 1]
+            # audio can be PyTorch tensor or numpy array, depending on version
+            # Convert to numpy if it's a tensor
+            if isinstance(audio, torch.Tensor):
+                audio = audio.cpu().numpy()
+            
+            # audio is float32 in range [-1, 1]
             # Convert to int16 for PCM output
             audio_int16 = (audio * 32767).astype(np.int16)
             return audio_int16

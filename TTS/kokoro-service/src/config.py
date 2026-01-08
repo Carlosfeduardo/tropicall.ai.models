@@ -65,6 +65,34 @@ class Settings(BaseSettings):
     )
     prometheus_port: int = Field(default=9090, description="Prometheus metrics port")
 
+    # ==========================================================================
+    # SLO (Service Level Objectives) and Admission Control
+    # ==========================================================================
+    
+    # SLO Targets - used for monitoring and capacity planning
+    slo_ttfa_p95_ms: float = Field(
+        default=250.0,
+        description="Target TTFA p95 in milliseconds (95% of requests < this)",
+    )
+    slo_ttfa_p99_ms: float = Field(
+        default=500.0,
+        description="Target TTFA p99 in milliseconds (99% of requests < this)",
+    )
+    slo_rtf_max: float = Field(
+        default=0.8,
+        description="Maximum acceptable RTF (should be < 1.0 for realtime)",
+    )
+    
+    # Admission Control - proactive rejection to protect SLO
+    max_queue_depth: int = Field(
+        default=30,
+        description="Maximum queue depth before rejecting new requests",
+    )
+    max_estimated_wait_ms: float = Field(
+        default=200.0,
+        description="Maximum estimated wait time (ms) before rejecting requests",
+    )
+
     @property
     def chunk_size_samples(self) -> int:
         """Calculate chunk size in samples based on sample rate and chunk_size_ms."""

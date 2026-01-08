@@ -29,7 +29,7 @@ class TextNormalizer:
     # Percentage pattern
     PERCENTAGE_PATTERN = re.compile(r"(\d+(?:,\d+)?)\s*%")
     
-    # Common abbreviations
+    # Common abbreviations (only with punctuation to avoid replacing parts of words)
     ABBREVIATIONS = {
         "Dr.": "Doutor",
         "Dra.": "Doutora",
@@ -47,19 +47,22 @@ class TextNormalizer:
         "nº": "número",
         "n°": "número",
         "Av.": "Avenida",
-        "R.": "Rua",
         "Ltda.": "Limitada",
         "S.A.": "Sociedade Anônima",
-        "km": "quilômetros",
-        "kg": "quilogramas",
-        "g": "gramas",
-        "m": "metros",
-        "cm": "centímetros",
-        "mm": "milímetros",
-        "h": "horas",
-        "min": "minutos",
-        "seg": "segundos",
     }
+    
+    # Unit patterns - only match when preceded by number and followed by space/punctuation
+    UNIT_PATTERNS = [
+        (re.compile(r"(\d+)\s*km\b"), r"\1 quilômetros"),
+        (re.compile(r"(\d+)\s*kg\b"), r"\1 quilogramas"),
+        (re.compile(r"(\d+)\s*g\b"), r"\1 gramas"),
+        (re.compile(r"(\d+)\s*m\b"), r"\1 metros"),
+        (re.compile(r"(\d+)\s*cm\b"), r"\1 centímetros"),
+        (re.compile(r"(\d+)\s*mm\b"), r"\1 milímetros"),
+        (re.compile(r"(\d+)\s*h\b"), r"\1 horas"),
+        (re.compile(r"(\d+)\s*min\b"), r"\1 minutos"),
+        (re.compile(r"(\d+)\s*seg\b"), r"\1 segundos"),
+    ]
     
     # Month names for date normalization
     MONTHS = {
@@ -90,9 +93,13 @@ class TextNormalizer:
         # Remove URLs
         text = self.URL_PATTERN.sub("link", text)
         
-        # Expand abbreviations
+        # Expand abbreviations (safe ones with punctuation)
         for abbr, full in self.ABBREVIATIONS.items():
             text = text.replace(abbr, full)
+        
+        # Expand unit abbreviations (only when preceded by numbers)
+        for pattern, replacement in self.UNIT_PATTERNS:
+            text = pattern.sub(replacement, text)
         
         # Normalize dates (DD/MM/YYYY -> DD de mês de YYYY)
         text = self._normalize_dates(text)

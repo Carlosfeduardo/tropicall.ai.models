@@ -25,6 +25,7 @@ from .observability.metrics import (
     tts_active_sessions,
     tts_queue_depth,
     update_gpu_metrics,
+    update_queue_metrics,
 )
 from .core.session import session_manager
 
@@ -35,9 +36,15 @@ async def update_metrics_loop() -> None:
     """Background task to update metrics periodically."""
     while True:
         try:
-            # Update queue depth
+            # Update queue metrics
             if iq_module.inference_queue is not None:
-                tts_queue_depth.set(iq_module.inference_queue.depth)
+                queue = iq_module.inference_queue
+                tts_queue_depth.set(queue.depth)
+                update_queue_metrics(
+                    queue_depth=queue.depth,
+                    estimated_wait_ms=queue.estimated_wait_ms,
+                    avg_inference_ms=queue.avg_inference_ms,
+                )
             
             # Update active sessions
             tts_active_sessions.set(session_manager.active_sessions)
@@ -83,10 +90,18 @@ async def lifespan(app: FastAPI):
     await asyncio.to_thread(worker.warmup)
     logger.info("Kokoro worker ready")
     
-    # 2. Create and start inference queue
+    # 2. Create and start inference queue with admission control settings
     logger.info("Starting inference queue...")
-    iq_module.inference_queue = InferenceQueue(worker)
+    iq_module.inference_queue = InferenceQueue(
+        worker=worker,
+        max_queue_depth=settings.max_queue_depth,
+        max_estimated_wait_ms=settings.max_estimated_wait_ms,
+    )
     iq_module.inference_queue.start()
+    logger.info(
+        f"Admission control: max_queue_depth={settings.max_queue_depth}, "
+        f"max_estimated_wait_ms={settings.max_estimated_wait_ms}"
+    )
     
     # 3. Mark startup complete
     health.mark_startup_complete()

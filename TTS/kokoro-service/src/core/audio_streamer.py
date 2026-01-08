@@ -30,6 +30,8 @@ class SegmentMetrics:
     ttfa_ms: float
     rtf: float
     total_samples: int
+    queue_wait_ms: float = 0.0  # Time spent waiting in queue
+    inference_ms: float = 0.0  # Pure inference time
 
     @property
     def audio_duration_ms(self) -> float:
@@ -82,6 +84,8 @@ async def stream_audio_to_client(
             "segment_id": metrics.segment_id,
             "request_id": metrics.request_id,
             "ttfa_ms": round(metrics.ttfa_ms, 2),
+            "queue_wait_ms": round(metrics.queue_wait_ms, 2),
+            "inference_ms": round(metrics.inference_ms, 2),
             "rtf": round(metrics.rtf, 3),
             "audio_duration_ms": round(metrics.audio_duration_ms, 1),
             "total_samples": metrics.total_samples,

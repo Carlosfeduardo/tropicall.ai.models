@@ -52,6 +52,30 @@ class QueueOverflowError(TTSError):
         )
 
 
+class QueueFullError(TTSError):
+    """Raised when queue depth exceeds maximum limit."""
+
+    def __init__(self, current_depth: int, max_depth: int):
+        super().__init__(
+            ErrorCode.QUEUE_FULL,
+            f"Queue full: {current_depth}/{max_depth} requests pending",
+        )
+        self.current_depth = current_depth
+        self.max_depth = max_depth
+
+
+class QueueCongestionError(TTSError):
+    """Raised when estimated wait time exceeds maximum limit."""
+
+    def __init__(self, estimated_wait_ms: float, max_wait_ms: float):
+        super().__init__(
+            ErrorCode.QUEUE_CONGESTION,
+            f"Queue congested: estimated wait {estimated_wait_ms:.0f}ms > {max_wait_ms:.0f}ms limit",
+        )
+        self.estimated_wait_ms = estimated_wait_ms
+        self.max_wait_ms = max_wait_ms
+
+
 class ClientSlowError(TTSError):
     """Raised when client is not consuming audio fast enough."""
 
