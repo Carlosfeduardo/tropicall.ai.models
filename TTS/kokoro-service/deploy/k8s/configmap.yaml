@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kokoro-tts-config
+data:
+  max_sessions: "100"
+  max_inflight_segments: "2"
+  default_voice: "pf_dora"
+  debounce_ms: "150"
+  log_level: "INFO"

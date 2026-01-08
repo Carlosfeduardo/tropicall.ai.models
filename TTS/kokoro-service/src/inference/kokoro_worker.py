@@ -1,0 +1,116 @@
+"""GPU worker for Kokoro-82M inference."""
+
+import logging
+from typing import TYPE_CHECKING
+
+import numpy as np
+import torch
+
+if TYPE_CHECKING:
+    from kokoro import KPipeline
+
+logger = logging.getLogger(__name__)
+
+
+class KokoroWorker:
+    """
+    Worker for Kokoro-82M TTS inference.
+    
+    This worker should be used via InferenceQueue to ensure
+    serialized access to the GPU (single consumer pattern).
+    """
+
+    SAMPLE_RATE = 24000
+
+    def __init__(
+        self,
+        lang_code: str = "p",
+        repo_id: str = "hexgrad/Kokoro-82M",
+        device: str = "cuda",
+    ):
+        """
+        Initialize the Kokoro worker.
+        
+        Args:
+            lang_code: Language code ('p' for pt-BR)
+            repo_id: HuggingFace model repository
+            device: Device to use ('cuda' or 'cpu')
+        """
+        self.lang_code = lang_code
+        self.repo_id = repo_id
+        self.device = device
+        self.pipeline: "KPipeline | None" = None
+        self._is_ready = False
+
+    @property
+    def is_ready(self) -> bool:
+        """Check if the worker is ready for inference."""
+        return self._is_ready and self.pipeline is not None
+
+    def warmup(self) -> None:
+        """
+        Load the model and run a warmup inference.
+        
+        This should be called during startup to reduce TTFA
+        for the first real requests.
+        """
+        logger.info("Loading Kokoro pipeline...")
+        
+        # Import here to avoid loading at module import time
+        from kokoro import KPipeline
+        
+        self.pipeline = KPipeline(
+            lang_code=self.lang_code,
+            repo_id=self.repo_id,
+        )
+        
+        logger.info("Running warmup inference...")
+        
+        # Run a dummy inference to warm up the model
+        warmup_text = "Teste de inicialização do sistema."
+        _ = list(self.pipeline(warmup_text, voice="pf_dora"))
+        
+        # Synchronize CUDA to ensure warmup is complete
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        
+        self._is_ready = True
+        logger.info("Kokoro worker ready")
+
+    def generate_segment(
+        self,
+        text: str,
+        voice: str = "pf_dora",
+        speed: float = 1.0,
+    ) -> np.ndarray:
+        """
+        Generate audio for a text segment.
+        
+        Args:
+            text: Text to synthesize
+            voice: Voice to use (pf_dora, pm_alex, pm_santa)
+            speed: Speech speed multiplier (0.5-2.0)
+            
+        Returns:
+            Audio as int16 numpy array
+        """
+        if not self.is_ready:
+            raise RuntimeError("Worker not ready - call warmup() first")
+        
+        if not text.strip():
+            return np.array([], dtype=np.int16)
+        
+        # KPipeline returns generator of (graphemes, phonemes, audio)
+        # For a single segment, we take the first result
+        for _gs, _ps, audio in self.pipeline(text, voice=voice, speed=speed):
+            # audio is numpy array float32 in range [-1, 1]
+            # Convert to int16 for PCM output
+            audio_int16 = (audio * 32767).astype(np.int16)
+            return audio_int16
+        
+        # If generator is empty, return empty array
+        return np.array([], dtype=np.int16)
+
+    def get_sample_rate(self) -> int:
+        """Get the audio sample rate."""
+        return self.SAMPLE_RATE

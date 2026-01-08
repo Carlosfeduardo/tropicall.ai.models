@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kokoro-tts
+  labels:
+    app: kokoro-tts
+spec:
+  replicas: 1  # Single replica per GPU
+  selector:
+    matchLabels:
+      app: kokoro-tts
+  template:
+    metadata:
+      labels:
+        app: kokoro-tts
+    spec:
+      containers:
+        - name: kokoro-tts
+          image: kokoro-tts:latest
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: TTS_HOST
+              value: "0.0.0.0"
+            - name: TTS_PORT
+              value: "8000"
+            - name: TTS_MAX_SESSIONS
+              valueFrom:
+                configMapKeyRef:
+                  name: kokoro-tts-config
+                  key: max_sessions
+            - name: TTS_MAX_INFLIGHT_SEGMENTS
+              valueFrom:
+                configMapKeyRef:
+                  name: kokoro-tts-config
+                  key: max_inflight_segments
+            - name: TTS_DEFAULT_VOICE
+              valueFrom:
+                configMapKeyRef:
+                  name: kokoro-tts-config
+                  key: default_voice
+            - name: TTS_DEBOUNCE_MS
+              valueFrom:
+                configMapKeyRef:
+                  name: kokoro-tts-config
+                  key: debounce_ms
+            - name: TTS_LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: kokoro-tts-config
+                  key: log_level
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+              memory: "32Gi"
+              cpu: "8"
+            requests:
+              nvidia.com/gpu: 1
+              memory: "16Gi"
+              cpu: "4"
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6  # 60 seconds for warmup
+      nodeSelector:
+        cloud.google.com/gke-accelerator: nvidia-tesla-a40
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
