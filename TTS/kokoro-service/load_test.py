@@ -142,9 +142,15 @@ async def run_session(
                     if data["type"] == "segment_done":
                         result.rtf = data.get("rtf", 0)
                         result.audio_duration_ms = data.get("audio_duration_ms", 0)
-                        # Capture server-reported queue metrics
-                        result.queue_wait_ms = data.get("queue_wait_ms", 0)
-                        result.inference_ms = data.get("inference_ms", 0)
+                        # Parse timing breakdown (new format)
+                        timing = data.get("timing", {})
+                        if timing:
+                            result.queue_wait_ms = timing.get("queue_wait_ms", 0)
+                            result.inference_ms = timing.get("inference_ms", 0)
+                        else:
+                            # Fallback for old format (backwards compatibility)
+                            result.queue_wait_ms = data.get("queue_wait_ms", 0)
+                            result.inference_ms = data.get("inference_ms", 0)
                     elif data["type"] == "session_ended":
                         break
                     elif data["type"] == "error":

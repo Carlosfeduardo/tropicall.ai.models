@@ -31,6 +31,19 @@ class Settings(BaseSettings):
     # Audio settings
     sample_rate: int = Field(default=24000, description="Audio sample rate in Hz")
     chunk_size_ms: int = Field(default=20, description="Audio chunk size in milliseconds")
+    
+    # Audio pacing (send chunks at real-time rate)
+    # DISABLED by default: Most TTS services (ElevenLabs, Play.ht, OpenAI) send
+    # audio as fast as possible. The CLIENT is responsible for buffering and
+    # playing at real-time. Server-side pacing creates backlog issues.
+    audio_pacing_enabled: bool = Field(
+        default=False,
+        description="Enable pacing of audio chunks (send at real-time rate)",
+    )
+    pacing_factor: float = Field(
+        default=0.8,
+        description="Pacing speed factor (0.8 = 80% of real-time, faster than playback)",
+    )
 
     # Text bundling
     debounce_ms: int = Field(
@@ -66,31 +79,40 @@ class Settings(BaseSettings):
     prometheus_port: int = Field(default=9090, description="Prometheus metrics port")
 
     # ==========================================================================
-    # SLO (Service Level Objectives) and Admission Control
+    # SLO (Service Level Objectives) - Server-Only Metrics
     # ==========================================================================
+    # Note: These are SERVER-ONLY SLOs. Network latency is not our control.
+    # Client-side TTFA = server_total + network_overhead
     
-    # SLO Targets - used for monitoring and capacity planning
-    slo_ttfa_p95_ms: float = Field(
+    # Server-only SLO targets (what we control)
+    slo_server_total_p95_ms: float = Field(
         default=250.0,
-        description="Target TTFA p95 in milliseconds (95% of requests < this)",
+        description="Target server_total p95 in ms (preprocess+queue+inference+postprocess+send)",
     )
-    slo_ttfa_p99_ms: float = Field(
-        default=500.0,
-        description="Target TTFA p99 in milliseconds (99% of requests < this)",
+    slo_queue_wait_p95_ms: float = Field(
+        default=100.0,
+        description="Target queue_wait p95 in ms",
+    )
+    slo_inference_p95_ms: float = Field(
+        default=90.0,
+        description="Target inference p95 in ms",
     )
     slo_rtf_max: float = Field(
         default=0.8,
         description="Maximum acceptable RTF (should be < 1.0 for realtime)",
     )
     
-    # Admission Control - proactive rejection to protect SLO
+    # Admission Control - proactive rejection to protect server SLO
+    # Note: These should be generous enough to allow normal operation
+    # but protect against runaway queues. If avg_processing is ~80ms,
+    # a queue of 5 items = 400ms wait, so 400ms limit allows 5 items.
     max_queue_depth: int = Field(
         default=30,
         description="Maximum queue depth before rejecting new requests",
     )
-    max_estimated_wait_ms: float = Field(
-        default=200.0,
-        description="Maximum estimated wait time (ms) before rejecting requests",
+    max_estimated_server_total_ms: float = Field(
+        default=400.0,
+        description="Maximum estimated server_total (ms) before rejecting requests",
     )
 
     @property

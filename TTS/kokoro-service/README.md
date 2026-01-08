@@ -111,6 +111,17 @@ LiveKit Agents -> WebSocket -> Session Manager -> DebouncedTextAccumulator
                             Audio Streamer -> Binary frames + segment_done
 ```
 
+# BUILD
+```
+cd /Users/carlosfernandes/Desktop/etc/tropicall.ai.models/TTS/kokoro-service && \
+docker buildx build \
+    --platform linux/amd64 \
+    -t c02gkkvdmd6m/tropicall-ai-tts:latest \
+    --push \
+    --progress=plain \
+    . 2>&1 | tee /tmp/kokoro_docker_build3.log
+```
+
 ## License
 
 MIT

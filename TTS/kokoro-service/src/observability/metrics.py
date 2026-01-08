@@ -106,14 +106,14 @@ tts_inflight_segments = Gauge(
     "Total segments currently in flight across all sessions",
 )
 
-tts_estimated_wait = Gauge(
-    "tts_estimated_wait_ms",
-    "Estimated wait time for new requests (queue_depth * avg_inference_ms)",
+tts_estimated_server_total = Gauge(
+    "tts_estimated_server_total_ms",
+    "Estimated server_total for new requests (queue_wait + processing)",
 )
 
-tts_avg_inference = Gauge(
-    "tts_avg_inference_ms",
-    "EMA-tracked average inference time in milliseconds",
+tts_avg_processing = Gauge(
+    "tts_avg_processing_ms",
+    "EMA-tracked average processing time (inference + postprocess) in ms",
 )
 
 tts_gpu_utilization = Gauge(
@@ -185,13 +185,13 @@ def record_slo_violation(violation_type: str) -> None:
 
 def update_queue_metrics(
     queue_depth: int,
-    estimated_wait_ms: float,
-    avg_inference_ms: float,
+    estimated_server_total_ms: float,
+    avg_processing_ms: float,
 ) -> None:
-    """Update queue-related gauge metrics."""
+    """Update queue-related gauge metrics (server-only SLO)."""
     tts_queue_depth.set(queue_depth)
-    tts_estimated_wait.set(estimated_wait_ms)
-    tts_avg_inference.set(avg_inference_ms)
+    tts_estimated_server_total.set(estimated_server_total_ms)
+    tts_avg_processing.set(avg_processing_ms)
 
 
 def record_session_ended(reason: str) -> None:

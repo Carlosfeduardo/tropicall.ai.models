@@ -5,10 +5,12 @@ Implements:
 - Session with cancellation support
 - Fairness control via max inflight segments
 - Request tracking for barge-in
+- Detailed timing instrumentation
 """
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -106,14 +108,18 @@ class Session:
         """
         Enqueue segment for inference with fairness control.
         
+        Measures preprocess_ms (text normalization time) for latency breakdown.
+        
         Args:
             text: Text to synthesize
         """
         if self.cancelled:
             return
 
-        # Normalize text
+        # Measure preprocess time (text normalization)
+        preprocess_start = time.monotonic()
         normalized_text = normalizer.normalize(text)
+        preprocess_ms = (time.monotonic() - preprocess_start) * 1000
 
         # Generate IDs
         request_id = self.generate_request_id()
@@ -145,17 +151,19 @@ class Session:
             # Update metrics
             self.total_segments += 1
             self.total_audio_duration_ms += result.audio_duration_ms
-            self.total_ttfa_ms += result.ttfa_ms
+            self.total_ttfa_ms += result.server_total_ms
 
-            # Stream audio with metrics
+            # Stream audio with detailed timing metrics
             metrics = SegmentMetrics(
                 segment_id=segment_id,
                 request_id=request_id,
-                ttfa_ms=result.ttfa_ms,
                 rtf=result.rtf,
                 total_samples=len(result.audio),
+                # Detailed timing breakdown
+                preprocess_ms=preprocess_ms,
                 queue_wait_ms=result.queue_wait_ms,
                 inference_ms=result.inference_ms,
+                postprocess_ms=result.postprocess_ms,
             )
             await stream_audio_to_client(self, result.audio, metrics)
 

@@ -42,8 +42,8 @@ async def update_metrics_loop() -> None:
                 tts_queue_depth.set(queue.depth)
                 update_queue_metrics(
                     queue_depth=queue.depth,
-                    estimated_wait_ms=queue.estimated_wait_ms,
-                    avg_inference_ms=queue.avg_inference_ms,
+                    estimated_server_total_ms=queue.estimated_server_total_ms,
+                    avg_processing_ms=queue.avg_processing_ms,
                 )
             
             # Update active sessions
@@ -95,12 +95,13 @@ async def lifespan(app: FastAPI):
     iq_module.inference_queue = InferenceQueue(
         worker=worker,
         max_queue_depth=settings.max_queue_depth,
-        max_estimated_wait_ms=settings.max_estimated_wait_ms,
+        max_estimated_server_total_ms=settings.max_estimated_server_total_ms,
     )
     iq_module.inference_queue.start()
     logger.info(
-        f"Admission control: max_queue_depth={settings.max_queue_depth}, "
-        f"max_estimated_wait_ms={settings.max_estimated_wait_ms}"
+        f"Admission control (server-only SLO): "
+        f"max_queue_depth={settings.max_queue_depth}, "
+        f"max_estimated_server_total_ms={settings.max_estimated_server_total_ms}"
     )
     
     # 3. Mark startup complete

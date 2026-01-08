@@ -201,9 +201,21 @@ async def websocket_tts(websocket: WebSocket) -> None:
                     )
                     
             except TTSError as e:
+                # Send error to client
                 await send_error(websocket, e.code, e.message)
+                
+                # Admission control errors: continue session (don't close)
+                # This allows the client to retry or wait
+                if e.code in (ErrorCode.QUEUE_FULL, ErrorCode.QUEUE_CONGESTION):
+                    logger.debug(
+                        f"Admission control rejected segment in {session_id}: {e.message}"
+                    )
+                    continue  # Don't close session, just continue
+                
+                # Other errors: close session
                 end_reason = SessionEndReason.ERROR
                 break
+                
             except Exception as e:
                 logger.exception(f"Error handling message in session {session_id}")
                 await send_error(

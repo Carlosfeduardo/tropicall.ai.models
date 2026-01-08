@@ -1,6 +1,8 @@
 """GPU worker for Kokoro-82M inference."""
 
 import logging
+import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -10,6 +12,14 @@ if TYPE_CHECKING:
     from kokoro import KPipeline
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class InferenceTimings:
+    """Detailed timing breakdown for inference."""
+    
+    inference_ms: float  # Pure model inference time
+    postprocess_ms: float  # Audio conversion to int16
 
 
 class KokoroWorker:
@@ -101,7 +111,7 @@ class KokoroWorker:
         text: str,
         voice: str = "pf_dora",
         speed: float = 1.0,
-    ) -> np.ndarray:
+    ) -> tuple[np.ndarray, InferenceTimings]:
         """
         Generate audio for a text segment.
         
@@ -111,17 +121,26 @@ class KokoroWorker:
             speed: Speech speed multiplier (0.5-2.0)
             
         Returns:
-            Audio as int16 numpy array
+            Tuple of (audio as int16 numpy array, timing breakdown)
         """
         if not self.is_ready:
             raise RuntimeError("Worker not ready - call warmup() first")
         
         if not text.strip():
-            return np.array([], dtype=np.int16)
+            return np.array([], dtype=np.int16), InferenceTimings(0.0, 0.0)
+        
+        # Start timing inference
+        inference_start = time.monotonic()
         
         # KPipeline returns generator of (graphemes, phonemes, audio)
         # For a single segment, we take the first result
         for _gs, _ps, audio in self.pipeline(text, voice=voice, speed=speed):
+            inference_end = time.monotonic()
+            inference_ms = (inference_end - inference_start) * 1000
+            
+            # Start timing postprocess
+            postprocess_start = time.monotonic()
+            
             # audio can be PyTorch tensor or numpy array, depending on version
             # Convert to numpy if it's a tensor
             if isinstance(audio, torch.Tensor):
@@ -130,10 +149,17 @@ class KokoroWorker:
             # audio is float32 in range [-1, 1]
             # Convert to int16 for PCM output
             audio_int16 = (audio * 32767).astype(np.int16)
-            return audio_int16
+            
+            postprocess_ms = (time.monotonic() - postprocess_start) * 1000
+            
+            timings = InferenceTimings(
+                inference_ms=inference_ms,
+                postprocess_ms=postprocess_ms,
+            )
+            return audio_int16, timings
         
         # If generator is empty, return empty array
-        return np.array([], dtype=np.int16)
+        return np.array([], dtype=np.int16), InferenceTimings(0.0, 0.0)
 
     def get_sample_rate(self) -> int:
         """Get the audio sample rate."""
