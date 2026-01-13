@@ -11,14 +11,7 @@ FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-devel AS builder
 WORKDIR /build
 
 # System deps for espeak-ng (G2P)
-# Workaround: GPG signature issues during cross-platform builds (QEMU emulation on Apple Silicon)
-# This reinstalls keyrings and allows apt to work properly
-RUN rm -f /etc/apt/sources.list.d/cuda*.list /etc/apt/sources.list.d/nvidia*.list && \
-    apt-key del 7fa2af80 2>/dev/null || true && \
-    rm -rf /var/lib/apt/lists/* && \
-    apt-get clean && \
-    apt-get update -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowDowngradeToInsecureRepositories=true && \
-    apt-get install -y --no-install-recommends --allow-unauthenticated \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     espeak-ng libsndfile1-dev git curl \
     && rm -rf /var/lib/apt/lists/*
 
