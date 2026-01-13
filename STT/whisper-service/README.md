@@ -426,6 +426,20 @@ agent = Agent(
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+```
+cd /Users/carlosfernandes/Desktop/etc/tropicall.ai.models/STT/whisper-service && \
+docker buildx build \
+    --platform linux/amd64 \
+    -t c02gkkvdmd6m/tropicall-ai-stt:latest \
+    --no-cache \
+    --push \
+    .
+```
+
+```
+python3 -m pip install scipy numpy && cd /Users/carlosfernandes/Desktop/etc/tropicall.ai.models/STT/whisper-service && python3 livekit_load_test.py --sessions 15 --wav whatsapp_test.wav --duration 60
+```
+
 ## License
 
 MIT

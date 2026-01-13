@@ -122,6 +122,11 @@ docker buildx build \
     . 2>&1 | tee /tmp/kokoro_docker_build3.log
 ```
 
+
+```
+ cd /Users/carlosfernandes/Desktop/etc/tropicall.ai.models/TTS/kokoro-service && python3 livekit_load_test.py --sessions 1 --duration 30
+ ```
+
 ## License
 
 MIT

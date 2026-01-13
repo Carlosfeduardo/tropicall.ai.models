@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 # Default URL (update with your RunPod endpoint)
-DEFAULT_URL = "wss://09hygtl4c9wk9j-8000.proxy.runpod.net/ws/tts"
+DEFAULT_URL = "wss://5own5zdxdl5clp-8000.proxy.runpod.net/ws/tts"
 
 # Test sentences (varied lengths for realistic testing)
 TEST_SENTENCES = [
