@@ -32,14 +32,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import uuid4
 
+import numpy as np
 import websockets
+from scipy.signal import resample
 
 # Configure logging
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Default URL (update with your RunPod endpoint)
-DEFAULT_URL = "wss://bsqko9hiifugis-8000.proxy.runpod.net/ws/stt"
+DEFAULT_URL = "wss://aujk9ttkh71fbe-8000.proxy.runpod.net/ws/stt"
 
 # Audio parameters
 SAMPLE_RATE = 16000
@@ -127,8 +129,25 @@ def generate_tone(duration_ms: int, frequency: float = 440.0, amplitude: float =
     return b''.join(samples)
 
 
+def resample_audio(audio_data: np.ndarray, original_rate: int, target_rate: int) -> np.ndarray:
+    """Resample audio to target sample rate."""
+    if original_rate == target_rate:
+        return audio_data
+    
+    # Calculate the number of samples in the resampled audio
+    num_samples = int(len(audio_data) * target_rate / original_rate)
+    
+    # Resample using scipy
+    resampled = resample(audio_data, num_samples)
+    
+    return resampled.astype(np.int16)
+
+
 def load_test_audio(wav_path: str | None) -> bytes | None:
-    """Load a WAV file for testing, or return None to use synthetic audio."""
+    """Load a WAV file for testing, or return None to use synthetic audio.
+    
+    Automatically resamples to 16kHz if needed.
+    """
     if not wav_path or not Path(wav_path).exists():
         return None
     
@@ -137,9 +156,20 @@ def load_test_audio(wav_path: str | None) -> bytes | None:
             if wf.getnchannels() != 1 or wf.getsampwidth() != 2:
                 logger.warning(f"WAV file must be mono 16-bit, using synthetic audio")
                 return None
-            if wf.getframerate() != SAMPLE_RATE:
-                logger.warning(f"WAV file should be {SAMPLE_RATE}Hz, got {wf.getframerate()}")
-            return wf.readframes(wf.getnframes())
+            
+            original_rate = wf.getframerate()
+            audio_bytes = wf.readframes(wf.getnframes())
+            
+            # Convert to numpy array
+            audio_data = np.frombuffer(audio_bytes, dtype=np.int16)
+            
+            # Resample if needed
+            if original_rate != SAMPLE_RATE:
+                print(f"⚠️  Resampling audio from {original_rate}Hz to {SAMPLE_RATE}Hz...")
+                audio_data = resample_audio(audio_data, original_rate, SAMPLE_RATE)
+                print(f"✓ Resampled: {len(audio_bytes)//2} → {len(audio_data)} samples")
+            
+            return audio_data.tobytes()
     except Exception as e:
         logger.warning(f"Failed to load WAV: {e}")
         return None
@@ -381,11 +411,11 @@ async def run_session(
                 "type": "start_session",
                 "session_id": session_id,
                 "config": {
-                    "language": "pt",
+                    "lang_code": "pt",
                     "sample_rate": SAMPLE_RATE,
-                    "enable_vad": True,
-                    "enable_partials": True,
-                    "partial_interval_ms": 300,
+                    "vad_enabled": True,
+                    "partial_results": True,
+                    "word_timestamps": True,
                 }
             }))
             
@@ -744,105 +774,6 @@ def print_summary(
     print(f"\nThroughput:")
     print(f"  Finals/segundo: {total_finals / duration_s:.2f}")
     print(f"  Partials/segundo: {len(all_partials) / duration_s:.2f}")
-    
-    # ==========================================
-    # TRANSCRIPTIONS PER SESSION (DETAILED)
-    # ==========================================
-    print(f"\n{'='*80}")
-    print("TRANSCRIÇÕES POR SESSÃO")
-    print(f"{'='*80}")
-    
-    for session in results:
-        if session.connection_error:
-            print(f"\n📛 {session.session_id}: Erro de conexão")
-            continue
-        
-        print(f"\n{'─'*60}")
-        print(f"🎤 SESSÃO: {session.session_id}")
-        print(f"{'─'*60}")
-        
-        # Group by segment_id
-        segments: dict[int, dict] = {}
-        
-        for partial in session.partials:
-            seg_id = partial.segment_id
-            if seg_id not in segments:
-                segments[seg_id] = {"partials": [], "final": None}
-            segments[seg_id]["partials"].append(partial)
-        
-        for final in session.finals:
-            seg_id = final.segment_id
-            if seg_id not in segments:
-                segments[seg_id] = {"partials": [], "final": None}
-            segments[seg_id]["final"] = final
-        
-        if not segments:
-            print("  (sem transcrições)")
-            continue
-        
-        # Print each segment's progression
-        for seg_id in sorted(segments.keys()):
-            seg_data = segments[seg_id]
-            partials = sorted(seg_data["partials"], key=lambda x: x.timestamp)
-            final = seg_data["final"]
-            
-            print(f"\n  📝 Segmento {seg_id}:")
-            
-            # Show partials progression
-            if partials:
-                print(f"     Progressão (partials):")
-                for i, p in enumerate(partials):
-                    text_preview = p.text[:60] + "..." if len(p.text) > 60 else p.text
-                    print(f"       {i+1}. [{p.server_total_ms:>4.0f}ms] \"{text_preview}\"")
-            
-            # Show final
-            if final:
-                print(f"     ✅ FINAL [{final.server_total_ms:>4.0f}ms | áudio: {final.audio_duration_ms:.0f}ms]:")
-                # Print full text, wrapping long lines
-                text = final.text
-                if text:
-                    # Split into lines of ~70 chars
-                    words = text.split()
-                    lines = []
-                    current_line = ""
-                    for word in words:
-                        if len(current_line) + len(word) + 1 <= 70:
-                            current_line += (" " if current_line else "") + word
-                        else:
-                            if current_line:
-                                lines.append(current_line)
-                            current_line = word
-                    if current_line:
-                        lines.append(current_line)
-                    
-                    for line in lines:
-                        print(f"        \"{line}\"")
-                else:
-                    print(f"        (vazio)")
-            else:
-                print(f"     ⏳ (sem final - sessão interrompida ou em andamento)")
-        
-        # Full session transcription (all finals concatenated)
-        all_final_texts = [f.text for f in sorted(session.finals, key=lambda x: x.segment_id) if f.text]
-        if all_final_texts:
-            print(f"\n  📄 TRANSCRIÇÃO COMPLETA DA SESSÃO:")
-            full_text = " ".join(all_final_texts)
-            # Wrap text
-            words = full_text.split()
-            lines = []
-            current_line = ""
-            for word in words:
-                if len(current_line) + len(word) + 1 <= 70:
-                    current_line += (" " if current_line else "") + word
-                else:
-                    if current_line:
-                        lines.append(current_line)
-                    current_line = word
-            if current_line:
-                lines.append(current_line)
-            
-            for line in lines:
-                print(f"     \"{line}\"")
     
     print(f"\n{'='*80}\n")
 
