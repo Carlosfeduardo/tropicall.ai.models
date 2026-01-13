@@ -1,0 +1,66 @@
+{
+  "name": "Whisper STT Microservice",
+  "description": "Real-time Speech-to-Text using Faster-Whisper for Brazilian Portuguese",
+  "imageName": "your-registry/whisper-stt:latest",
+  "dockerArgs": "",
+  "ports": "8000/http",
+  "volumeInGb": 10,
+  "volumeMountPath": "/workspace",
+  "env": [
+    {
+      "key": "STT_HOST",
+      "value": "0.0.0.0"
+    },
+    {
+      "key": "STT_PORT",
+      "value": "8000"
+    },
+    {
+      "key": "STT_WHISPER_MODEL",
+      "value": "large-v3-turbo"
+    },
+    {
+      "key": "STT_COMPUTE_TYPE",
+      "value": "float16"
+    },
+    {
+      "key": "STT_DEVICE",
+      "value": "cuda"
+    },
+    {
+      "key": "STT_LANGUAGE",
+      "value": "pt"
+    },
+    {
+      "key": "STT_VAD_ENABLED",
+      "value": "true"
+    },
+    {
+      "key": "STT_VAD_THRESHOLD",
+      "value": "0.5"
+    },
+    {
+      "key": "STT_PARTIAL_INTERVAL_MS",
+      "value": "300"
+    },
+    {
+      "key": "STT_MAX_QUEUE_DEPTH",
+      "value": "20"
+    },
+    {
+      "key": "STT_MAX_ESTIMATED_SERVER_TOTAL_MS",
+      "value": "500"
+    },
+    {
+      "key": "STT_LOG_LEVEL",
+      "value": "INFO"
+    },
+    {
+      "key": "CUDA_VISIBLE_DEVICES",
+      "value": "0"
+    }
+  ],
+  "startJupyter": false,
+  "startSsh": false,
+  "readme": "# Whisper STT Microservice\n\nReal-time STT using Faster-Whisper for Brazilian Portuguese.\n\n## Endpoints\n\n- WebSocket: `ws://<pod-url>/ws/stt`\n- Health: `GET /health/ready`\n- Status: `GET /health/status`\n- Metrics: `GET /metrics`\n\n## Model Options\n\nSet `STT_WHISPER_MODEL` to:\n- `distil-whisper-large-v3` (default, fast)\n- `large-v3` (best quality)\n- `medium` (balanced)\n\n## Quick Test\n\nUse the Python client or curl:\n\n```bash\ncurl http://<pod-url>/health/ready\n```"
+}

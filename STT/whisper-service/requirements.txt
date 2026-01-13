@@ -1,0 +1,28 @@
+# Core
+fastapi>=0.109.0,<0.129.0
+uvicorn[standard]>=0.27.0
+websockets>=12.0
+pydantic>=2.5.0,<3.0.0
+pydantic-settings>=2.1.0,<3.0.0
+
+# Faster-Whisper (CTranslate2-based)
+# Ref: https://github.com/SYSTRAN/faster-whisper
+faster-whisper>=1.0.0,<2.0.0
+
+# PyTorch for Silero VAD
+# Note: torch version should match CUDA version in Dockerfile
+torch>=2.1.0,<2.5.0
+torchaudio>=2.1.0,<2.5.0
+
+# Audio processing
+numpy>=1.24.0,<2.0.0
+
+# Observability
+prometheus-client>=0.19.0
+structlog>=24.1.0
+
+# Optional: for health checks
+httpx>=0.26.0
+
+# HuggingFace Hub (for model downloads)
+huggingface-hub>=0.20.0,<0.30.0

@@ -1,0 +1,23 @@
+{
+  "name": "supertonic-tts",
+  "description": "Supertonic 2 TTS Microservice - Lightning Fast Multilingual TTS for LiveKit",
+  "dockerImage": "your-registry/supertonic-tts:latest",
+  "gpuType": "NVIDIA A40",
+  "gpuCount": 1,
+  "containerDiskInGb": 30,
+  "volumeInGb": 10,
+  "ports": "8000/http",
+  "env": {
+    "TTS_HOST": "0.0.0.0",
+    "TTS_PORT": "8000",
+    "TTS_MAX_SESSIONS": "100",
+    "TTS_MAX_INFLIGHT_SEGMENTS": "2",
+    "TTS_DEFAULT_VOICE": "F1",
+    "TTS_LANG_CODE": "pt",
+    "TTS_NUM_INFERENCE_STEPS": "2",
+    "TTS_DEBOUNCE_MS": "150",
+    "TTS_LOG_LEVEL": "INFO"
+  },
+  "startupScript": "python -m src.main",
+  "readme": "# Supertonic 2 TTS Microservice\n\nLightning Fast Multilingual TTS with Supertonic 2.\n\n## Supported Languages\n\n- English (en)\n- Korean (ko)\n- Spanish (es)\n- Portuguese (pt)\n- French (fr)\n\n## Endpoints\n\n- WebSocket: `ws://<endpoint>:8000/ws/tts`\n- Health: `http://<endpoint>:8000/health/ready`\n- Metrics: `http://<endpoint>:8000/metrics`\n\n## Usage\n\nConnect via WebSocket and send JSON messages:\n\n```json\n{\"type\": \"start_session\", \"session_id\": \"test\", \"config\": {\"voice\": \"F1\", \"lang_code\": \"pt\"}}\n{\"type\": \"send_text\", \"text\": \"Olá, como vai?\"}\n{\"type\": \"end_session\"}\n```\n"
+}

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: supertonic-tts-config
+data:
+  max_sessions: "100"
+  max_inflight_segments: "2"
+  default_voice: "F1"
+  lang_code: "pt"
+  num_inference_steps: "2"
+  debounce_ms: "150"
+  log_level: "INFO"

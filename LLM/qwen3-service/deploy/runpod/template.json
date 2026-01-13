@@ -1,0 +1,30 @@
+{
+  "name": "tropicall-ai-llm",
+  "description": "LLM Microservice - Real-time chat with GPT-OSS-120B via vLLM",
+  "dockerImage": "c02gkkvdmd6m/tropicall-ai-llm:latest",
+  "gpuType": "NVIDIA H100 80GB",
+  "gpuCount": 1,
+  "containerDiskInGb": 150,
+  "volumeInGb": 200,
+  "ports": "8001/http",
+  "env": {
+    "HF_HOME": "/runpod-volume/huggingface",
+    "LLM_HOST": "0.0.0.0",
+    "LLM_PORT": "8001",
+    "LLM_MODEL_ID": "openai/gpt-oss-120b",
+    "LLM_MAX_MODEL_LEN": "8192",
+    "LLM_GPU_MEMORY_UTILIZATION": "0.95",
+    "LLM_ENFORCE_EAGER": "true",
+    "LLM_ENABLE_PREFIX_CACHING": "false",
+    "LLM_LMCACHE_ENABLED": "true",
+    "LLM_LMCACHE_CPU_SIZE_GB": "40",
+    "LLM_MAX_SESSIONS": "50",
+    "LLM_MAX_TOKENS": "2048",
+    "LLM_MAX_CONCURRENT_REQUESTS": "100",
+    "LLM_ENABLE_THINKING": "false",
+    "LLM_LOG_LEVEL": "INFO",
+    "CUDA_VISIBLE_DEVICES": "0"
+  },
+  "startupScript": "python -m src.main",
+  "readme": "# Tropicall AI LLM Microservice\n\nReal-time LLM inference with GPT-OSS-120B via vLLM.\n\n## Endpoints\n\n### WebSocket\n- `ws://<endpoint>:8001/ws/chat` - Real-time chat streaming\n\n### OpenAI-Compatible HTTP\n- `POST http://<endpoint>:8001/v1/chat/completions` - Chat completions\n- `GET http://<endpoint>:8001/v1/models` - List models\n\n### Health & Metrics\n- `http://<endpoint>:8001/health/ready` - Readiness probe\n- `http://<endpoint>:8001/health/live` - Liveness probe\n- `http://<endpoint>:8001/metrics` - Prometheus metrics\n\n## WebSocket Protocol\n\n```json\n// Start session\n{\"type\": \"start_session\", \"session_id\": \"test\", \"config\": {\"system_prompt\": \"You are a helpful assistant.\"}}\n\n// Send message\n{\"type\": \"send_message\", \"content\": \"Hello, how are you?\"}\n\n// End session\n{\"type\": \"end_session\"}\n```\n\n## OpenAI API Usage\n\n```python\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url=\"http://<endpoint>:8001/v1\",\n    api_key=\"not-needed\"\n)\n\nresponse = client.chat.completions.create(\n    model=\"gpt-oss-120b\",\n    messages=[{\"role\": \"user\", \"content\": \"Hello!\"}],\n    stream=True\n)\n\nfor chunk in response:\n    print(chunk.choices[0].delta.content, end=\"\")\n```\n"
+}

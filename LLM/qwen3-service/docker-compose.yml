@@ -1,0 +1,58 @@
+version: "3.8"
+
+services:
+  qwen3-llm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: c02gkkvdmd6m/tropicall-ai-llm:latest
+    container_name: qwen3-llm
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+      - "9091:9091"  # Prometheus metrics
+    environment:
+      # HuggingFace cache location
+      - HF_HOME=/root/.cache/huggingface
+      # LLM service configuration
+      - LLM_HOST=0.0.0.0
+      - LLM_PORT=8001
+      - LLM_MODEL_ID=openai/gpt-oss-120b
+      - LLM_MAX_MODEL_LEN=8192
+      - LLM_GPU_MEMORY_UTILIZATION=0.95
+      - LLM_ENFORCE_EAGER=true
+      - LLM_ENABLE_PREFIX_CACHING=false
+      # LMCache - KV cache CPU offloading
+      - LLM_LMCACHE_ENABLED=true
+      - LLM_LMCACHE_CPU_SIZE_GB=40
+      - LLM_MAX_SESSIONS=50
+      - LLM_MAX_TOKENS=2048
+      - LLM_ENABLE_THINKING=false
+      - LLM_LOG_LEVEL=INFO
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      # Persist model cache - model (~60GB) downloaded on first run
+      - huggingface_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health/ready"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 600s  # 10 minutes - first run downloads model
+    networks:
+      - tropicall-ai
+
+volumes:
+  huggingface_cache:
+
+networks:
+  tropicall-ai:
+    name: tropicall-ai
+    external: true
